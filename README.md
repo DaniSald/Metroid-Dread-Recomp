@@ -93,10 +93,22 @@ bash linux/setup_game.sh GAME_FOLDER [UPDATE_FOLDER]   # checks the files, compi
 bash linux/run.sh                             # play; settings in games/Metroid Dread.ini, log in games/Metroid Dread.log
 ```
 
-`linux/build_game_so.sh` recompiles only what changed (after editing the patches or the translator),
-`linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
+`linux/run.sh` opens the same Play / setup / settings screens as the Windows EXE (`--play` skips them, `--launcher`
+brings them back when skipped). `linux/build_game_so.sh` recompiles only what changed (after editing the patches or the
+translator), `linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
 `menu_test.sh` and `run_route_linux.sh` run the automated tests on a copy of the game folder (`SWR_SOFTGL=1` for
-Mesa's software OpenGL). The Linux build has the in-game menu but not the Play / setup screen, and no native Vulkan.
+Mesa's software OpenGL). Not on Linux yet: native Vulkan, updates from the releases page, the Steam shortcut button,
+the mouse free aim and F7 recording.
+
+### AppImage
+
+`bash linux/make_appimage.sh` builds `linux/dist/Metroid_Dread-x86_64.AppImage`: one file for players, like the Windows
+EXE. It has the runtime with the Play / setup screens, the recompiler, a relocatable GCC 14.3
+([Bootlin](https://toolchains.bootlin.com)) and Python 3.12
+([python-build-standalone](https://github.com/astral-sh/python-build-standalone)), so nothing needs to be installed;
+no game files are inside. The downloads are checked against their SHA-256 and kept in `linux/appimage/cache/`. The game
+is installed in `~/.local/share/MetroidDreadRecomp` (or `METROID_DREAD_HOME`). It needs glibc 2.38 or newer, SDL2 for
+controllers and an OpenGL 4.3 driver.
 
 ## What is in this repository
 

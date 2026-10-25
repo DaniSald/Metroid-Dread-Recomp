@@ -266,10 +266,12 @@ def source(out):
             cp(p, os.path.join(out, 'linux', f))
     for f in ('run.sh', 'README-SteamDeck.txt', 'Metroid Dread.ini'):   # the Steam Deck package's own files (linux/package.sh)
         cp(os.path.join(ROOT, 'linux', 'dist', f), os.path.join(out, 'linux', 'dist', f))
+    for f in ('AppRun', 'metroid-dread.desktop'):   # the AppImage's own files (linux/make_appimage.sh)
+        cp(os.path.join(ROOT, 'linux', 'appimage', f), os.path.join(out, 'linux', 'appimage', f))
     cp(os.path.join(ROOT, 'runtime', 'snxvk', 'LICENSE'), os.path.join(out, 'LICENSE-GPL-3.0.txt'))
     open(os.path.join(out, '.gitignore'), 'w').write('\n'.join(['gcc/', 'python/', 'bin/', 'games/', '*_build/', '*_data/', '*_code.dll', '*.o', '*.a',
         '!runtime/vp9/win/libvpx.a', '!runtime/oh264/win/*.a', 'runtime/imgui/', 'redist/', 'cleanbuild_test/', 'runtime/snxvk/obj*/', '__pycache__/', 'release/', '*.log', 'shader_cache/', 'vulkan_native/', '',
-        '# Linux build output (linux/*.sh)', '*.so', 'linux/test/', 'linux/dist/MetroidDread-Linux/', 'linux/dist/*.tar.gz', '',
+        '# Linux build output (linux/*.sh)', '*.so', 'linux/test/', 'linux/dist/MetroidDread-Linux/', 'linux/dist/*.tar.gz', 'linux/dist/*.AppImage', 'linux/appimage/cache/', 'linux/appimage/AppDir/', '',
         '# never commit binaries, archives or game files', '*.exe', '*.dll', '*.pdb', '*.zip', '*.7z', '*.rar', '*.nsp', '*.xci',
         '*.nca', '*.nso', '*.keys', 'exefs/', 'romfs/', 'ExeFS/', 'RomFS/', 'mods/', '']))
     # line endings exactly as written (some runtime files are CRLF by rule, the Linux scripts must stay LF)
@@ -380,10 +382,22 @@ bash linux/setup_game.sh GAME_FOLDER [UPDATE_FOLDER]   # checks the files, compi
 bash linux/run.sh                             # play; settings in games/Metroid Dread.ini, log in games/Metroid Dread.log
 ```
 
-`linux/build_game_so.sh` recompiles only what changed (after editing the patches or the translator),
-`linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
+`linux/run.sh` opens the same Play / setup / settings screens as the Windows EXE (`--play` skips them, `--launcher`
+brings them back when skipped). `linux/build_game_so.sh` recompiles only what changed (after editing the patches or the
+translator), `linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
 `menu_test.sh` and `run_route_linux.sh` run the automated tests on a copy of the game folder (`SWR_SOFTGL=1` for
-Mesa's software OpenGL). The Linux build has the in-game menu but not the Play / setup screen, and no native Vulkan.
+Mesa's software OpenGL). Not on Linux yet: native Vulkan, updates from the releases page, the Steam shortcut button,
+the mouse free aim and F7 recording.
+
+### AppImage
+
+`bash linux/make_appimage.sh` builds `linux/dist/Metroid_Dread-x86_64.AppImage`: one file for players, like the Windows
+EXE. It has the runtime with the Play / setup screens, the recompiler, a relocatable GCC 14.3
+([Bootlin](https://toolchains.bootlin.com)) and Python 3.12
+([python-build-standalone](https://github.com/astral-sh/python-build-standalone)), so nothing needs to be installed;
+no game files are inside. The downloads are checked against their SHA-256 and kept in `linux/appimage/cache/`. The game
+is installed in `~/.local/share/MetroidDreadRecomp` (or `METROID_DREAD_HOME`). It needs glibc 2.38 or newer, SDL2 for
+controllers and an OpenGL 4.3 driver.
 
 ## What is in this repository
 
