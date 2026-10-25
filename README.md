@@ -80,6 +80,24 @@ python\python.exe dread\make_release.py release <empty folder> --version X.Y.Z -
 The release step also needs `redist\zlib1.dll` (zlib 1.3.1, x64) and `redist\SDL2.dll` (SDL 2.x x64 release), the two
 DLLs the game ships beside it. They are not in this repository.
 
+## Build and play on Linux
+
+Native Linux (X11 or Wayland through XWayland, OpenGL 4.3), built from this repository with the system's GCC. The
+scripts in `linux/` keep everything inside the repository: the runtime in `bin/`, the installed game in `games/`.
+You need your own Metroid Dread 2.1.0 extracted to an ExeFS and a RomFS folder, as for Windows.
+
+```
+bash linux/install_deps.sh                    # gcc, X11/OpenGL headers, static libvpx, SDL2 (asks for sudo)
+bash linux/setup_and_build_runtime.sh         # bin/runtime_linux_x11, with the in-game menu
+bash linux/setup_game.sh GAME_FOLDER [UPDATE_FOLDER]   # checks the files, compiles games/Metroid Dread_code.so
+bash linux/run.sh                             # play; settings in games/Metroid Dread.ini, log in games/Metroid Dread.log
+```
+
+`linux/build_game_so.sh` recompiles only what changed (after editing the patches or the translator),
+`linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
+`menu_test.sh` and `run_route_linux.sh` run the automated tests on a copy of the game folder (`SWR_SOFTGL=1` for
+Mesa's software OpenGL). The Linux build has the in-game menu but not the Play / setup screen, and no native Vulkan.
+
 ## What is in this repository
 
 - Source code only, plus three prebuilt third-party static libraries, kept so the build does not need MSYS2:

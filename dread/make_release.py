@@ -264,9 +264,12 @@ def source(out):
         p = os.path.join(ROOT, 'linux', f)
         if os.path.isfile(p) and (f.endswith('.sh') or f.endswith('.h') or f.endswith('.txt')):
             cp(p, os.path.join(out, 'linux', f))
+    for f in ('run.sh', 'README-SteamDeck.txt', 'Metroid Dread.ini'):   # the Steam Deck package's own files (linux/package.sh)
+        cp(os.path.join(ROOT, 'linux', 'dist', f), os.path.join(out, 'linux', 'dist', f))
     cp(os.path.join(ROOT, 'runtime', 'snxvk', 'LICENSE'), os.path.join(out, 'LICENSE-GPL-3.0.txt'))
     open(os.path.join(out, '.gitignore'), 'w').write('\n'.join(['gcc/', 'python/', 'bin/', 'games/', '*_build/', '*_data/', '*_code.dll', '*.o', '*.a',
         '!runtime/vp9/win/libvpx.a', '!runtime/oh264/win/*.a', 'runtime/imgui/', 'redist/', 'cleanbuild_test/', 'runtime/snxvk/obj*/', '__pycache__/', 'release/', '*.log', 'shader_cache/', 'vulkan_native/', '',
+        '# Linux build output (linux/*.sh)', '*.so', 'linux/test/', 'linux/dist/MetroidDread-Linux/', 'linux/dist/*.tar.gz', '',
         '# never commit binaries, archives or game files', '*.exe', '*.dll', '*.pdb', '*.zip', '*.7z', '*.rar', '*.nsp', '*.xci',
         '*.nca', '*.nso', '*.keys', 'exefs/', 'romfs/', 'ExeFS/', 'RomFS/', 'mods/', '']))
     # line endings exactly as written (some runtime files are CRLF by rule, the Linux scripts must stay LF)
@@ -363,6 +366,24 @@ python\\python.exe dread\\make_release.py release <empty folder> --version X.Y.Z
 
 The release step also needs `redist\\zlib1.dll` (zlib 1.3.1, x64) and `redist\\SDL2.dll` (SDL 2.x x64 release), the two
 DLLs the game ships beside it. They are not in this repository.
+
+## Build and play on Linux
+
+Native Linux (X11 or Wayland through XWayland, OpenGL 4.3), built from this repository with the system's GCC. The
+scripts in `linux/` keep everything inside the repository: the runtime in `bin/`, the installed game in `games/`.
+You need your own Metroid Dread 2.1.0 extracted to an ExeFS and a RomFS folder, as for Windows.
+
+```
+bash linux/install_deps.sh                    # gcc, X11/OpenGL headers, static libvpx, SDL2 (asks for sudo)
+bash linux/setup_and_build_runtime.sh         # bin/runtime_linux_x11, with the in-game menu
+bash linux/setup_game.sh GAME_FOLDER [UPDATE_FOLDER]   # checks the files, compiles games/Metroid Dread_code.so
+bash linux/run.sh                             # play; settings in games/Metroid Dread.ini, log in games/Metroid Dread.log
+```
+
+`linux/build_game_so.sh` recompiles only what changed (after editing the patches or the translator),
+`linux/package.sh` makes the Steam Deck package in `linux/dist/` (no game data inside), and `run_test.sh`,
+`menu_test.sh` and `run_route_linux.sh` run the automated tests on a copy of the game folder (`SWR_SOFTGL=1` for
+Mesa's software OpenGL). The Linux build has the in-game menu but not the Play / setup screen, and no native Vulkan.
 
 ## What is in this repository
 
