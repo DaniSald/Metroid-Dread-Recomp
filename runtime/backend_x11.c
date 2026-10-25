@@ -335,3 +335,12 @@ void frontend_frame(void){
 }
 
 int backend_glq_ok(void){ return 1; }   /* GL calls go through glq */
+
+/* Play screen / first-run setup (dread_ui/fe.cpp, in its own window) before the game starts (main.c). 0 = go on with the
+   game, 1 = quit. Skipped for test runs and --no-launcher, as backend_win32.c does; builds without it link stub_fe.c */
+extern int fe_should_show(int argc, char** argv, const char* exedir, const char* exename); extern int fe_run(void* hwnd);
+int backend_frontend(int argc, char** argv, const char* exedir, const char* exename){
+  if(!getenv("SWR_FE_TEST") && (getenv("SWR_TEST_SCRIPT") || getenv("SWR_TEST_EXIT_FRAME") || getenv("SWR_TEST_RECORD"))) return 0;
+  for(int i=1;i<argc;i++) if(!strcmp(argv[i],"--no-launcher") || !strncmp(argv[i],"--seconds=",10) || !strncmp(argv[i],"--frames=",9)) return 0;   /* timed runs are tests */
+  if(!fe_should_show(argc,argv,exedir,exename)) return 0;
+  return fe_run(NULL); }
