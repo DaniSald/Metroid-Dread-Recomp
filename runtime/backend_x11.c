@@ -23,6 +23,8 @@ static char g_script[1024]; static char g_title[256]; static volatile int g_shot
 static u64 keys_held;
 extern int g_opt_fps;
 
+/* [Input] mouse_buttons: the game mouse (free aim, buttons) is the Windows backend's only; nothing to re-parse here */
+void mouse_map_reset(void){}
 void backend_ini(const char* k, const char* v){
   if(!strcmp(k,"fullscreen")) g_want_fs=atoi(v);
   else if(!strcmp(k,"seconds")) g_seconds=atoi(v);
