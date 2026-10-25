@@ -24,6 +24,9 @@ vulkan_native/
 linux/test/
 linux/dist/MetroidDread-Linux/
 linux/dist/*.tar.gz
+linux/dist/*.AppImage
+linux/appimage/cache/
+linux/appimage/AppDir/
 
 # never commit binaries, archives or game files
 *.exe
