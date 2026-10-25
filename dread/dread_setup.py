@@ -399,7 +399,12 @@ def main():
             if not cc:
                 raise Fail('The bundled GCC is missing (recompiler\\gcc). Extract the release again.')
         else:
-            cc = shutil.which(os.environ.get('CC') or 'gcc')
+            # $CC, else the GCC bundled next to this script (the AppImage's recompiler/gcc), else the system's
+            cc = shutil.which(os.environ['CC']) if os.environ.get('CC') else None
+            for n in ('gcc', 'x86_64-buildroot-linux-gnu-gcc'):
+                if not cc and os.path.isfile(os.path.join(HERE, 'gcc', 'bin', n)):
+                    cc = os.path.join(HERE, 'gcc', 'bin', n)
+            cc = cc or shutil.which('gcc')
             if not cc:
                 raise Fail('gcc not found. Install it first (bash linux/install_deps.sh).')
             if not os.path.isfile(LX_COMPAT):
