@@ -8,6 +8,7 @@ games/
 *.o
 *.a
 !runtime/vp9/win/libvpx.a
+!runtime/vp9/lin/libvpx.a
 !runtime/oh264/win/*.a
 runtime/imgui/
 redist/

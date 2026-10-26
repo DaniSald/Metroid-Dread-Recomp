@@ -291,6 +291,7 @@ def build_runtime(cc, out, target_win, backend, say, opt='2'):
     h264 = os.path.isfile(os.path.join(oh, 'libdecoder.a')) and backend in ('win32', 'x11', 'headless')
     vp = os.path.join(RT, 'vp9', 'win' if target_win else 'lin')   # libvpx (VP9 .webm videos); optional
     vp9 = os.path.isfile(os.path.join(vp, 'libvpx.a')) and backend in ('win32', 'x11', 'headless')
+    vp_inc = ['-I', os.path.join(vp, 'include')] if os.path.isdir(os.path.join(vp, 'include')) else []   # headers matching that archive
     srcs += [os.path.join(RT, 'host1x.c'), os.path.join(RT, 'snxvk_glue.c')]
     # Metroid Dread front end + in-game menu (Dear ImGui, runtime/dread_ui); prebuilt by work-profiler/build_imgui.py
     imgui = os.path.join(RT, 'imgui', 'libimgui.a')
@@ -304,7 +305,7 @@ def build_runtime(cc, out, target_win, backend, say, opt='2'):
     snxvk = os.path.join(RT, 'snxvk', 'libsnxvk_new_nodlss.a' if release else 'libsnxvk_new.a')   # ScarletNX main b5f4f14 (work-profiler/build_snxvk2.py)
     if os.environ.get('SWR_SNXVK_LIB'): snxvk = os.path.join(RT, 'snxvk', os.environ['SWR_SNXVK_LIB'])   # e.g. libsnxvk_new.a (re-vendor tests)
     snxvk = snxvk if os.path.isfile(snxvk) and target_win and backend == 'win32' and not os.environ.get('SWR_NO_SNXVK') else None
-    cmd = [cc, '-O' + opt, '-w', '-fno-strict-aliasing', '-Wl,-S', '-I', RT, '-I', os.path.join(RT, 'bcn'), '-I', os.path.join(RT, 'spvc'), '-I', os.path.join(RT, 'oh264', 'include'), '-I', os.path.join(RT, 'vp9', 'include'), '-I', os.path.join(RT, 'snxvk', 'deps', 'Vulkan-Headers-1.4.365', 'include')] + srcs + ['-o', out]
+    cmd = [cc, '-O' + opt, '-w', '-fno-strict-aliasing', '-Wl,-S', '-I', RT, '-I', os.path.join(RT, 'bcn'), '-I', os.path.join(RT, 'spvc'), '-I', os.path.join(RT, 'oh264', 'include')] + vp_inc + ['-I', os.path.join(RT, 'vp9', 'include'), '-I', os.path.join(RT, 'snxvk', 'deps', 'Vulkan-Headers-1.4.365', 'include')] + srcs + ['-o', out]
     if not h264: cmd += ['-DSWR_NO_H264']
     if vp9: cmd += ['-DSWR_HAVE_VP9']
     if release: cmd += ['-DSWR_RELEASE']
