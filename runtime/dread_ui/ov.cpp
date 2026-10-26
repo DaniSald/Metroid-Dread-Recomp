@@ -1,9 +1,10 @@
 // In-game menu: F1 (or the controller shortcut) opens it over the running game. Drawn with Dear ImGui's OpenGL3 backend on
-// the GL thread just before the swap (glq.c). The game keeps running at normal speed; while the menu is open it gets neutral
-// input, and after closing it gets input again only once every button is released (no stuck buttons).
+// the GL thread just before the swap (glq.c), or, with the native Vulkan renderer, as triangles through ScarletNX's UI
+// pipeline on the Vulkan present thread (snxvk_ui_overlay.h). The game keeps running at normal speed; while the menu is open
+// it gets neutral input, and after closing it gets input again only once every button is released (no stuck buttons).
 // Threads: window thread -> ov_wndproc (keyboard, mouse); main thread -> ov_pad (controller, open/close, settings snapshot);
-// GL thread -> ov_gl_frame (drawing). They meet in g_q under its mutex. The window side: ov_wndproc on Windows, the
-// ov_input_* functions from the X11 backend on Linux (Steam Deck: touch arrives as the mouse).
+// render thread -> ov_gl_frame / ov_vk_prepare+ov_vk_frame (drawing). They meet in g_q under its mutex. The window side:
+// ov_wndproc on Windows, the ov_input_* functions from the X11 backend on Linux (Steam Deck: touch arrives as the mouse).
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -35,11 +36,18 @@ void gpu_gl_state_dirty(void);
 void backend_release_keys(void);
 void backend_request_quit(void);
 int backend_is_fullscreen(void);
-extern void (*g_backend_status)(const char*);
-extern int g_snxvk_on;
 extern int g_opt_ff;
 extern int g_frames;
 void logf_(int lvl, const char* f, ...);
+#ifdef SWR_HAVE_SNXVK
+#include "snxvk_ui_overlay.h"
+extern int (*snxv_g_vk_overlay_wanted)(void);
+extern int (*snxv_g_vk_overlay_prepare)(void*, unsigned, unsigned);
+extern void (*snxv_g_vk_overlay_frame)(void*);
+extern void snxv_vk_ui_triangles_prepare(void*);
+extern void snxv_vk_ui_triangles(void*, const SnxUiTriVertex*, int, const uint32_t*, int,
+                                 const SnxUiTriRange*, int);
+#endif
 }
 using namespace ui;
 
@@ -208,7 +216,6 @@ void snapshot_settings() {   // main thread
 extern "C" int ov_is_open(void) { return g_q.open ? 1 : 0; }
 /* the window side, any platform: F1 (toggle) and, while the menu is open, keys, characters and the mouse */
 extern "C" void ov_input_toggle(void) {
-    if (g_snxvk_on) { if (g_backend_status) g_backend_status("The in-game menu needs the OpenGL renderer for now (Play screen > Graphics)"); return; }
     Lock k; g_q.want_toggle = true;
 }
 extern "C" void ov_input_key(int ovk, int down) { if (!g_q.open || !ovk) return; Lock k; g_q.ev.push_back({0, ovk, down != 0}); }
@@ -251,7 +258,6 @@ extern "C" int ov_pad(unsigned long long phys, int lx, int ly) {
     if (sc == "minus_plus" && (phys >> 10 & 1) && (phys >> 11 & 1) && ((pressed >> 10 & 1) || (pressed >> 11 & 1))) toggle = true;
     if (sc == "l3_r3") { bool both = (phys >> 4 & 1) && (phys >> 5 & 1); if (both) { if (!g_hold_t0) g_hold_t0 = now; else if (g_hold_t0 > 0 && now - g_hold_t0 >= 1.0) { toggle = true; g_hold_t0 = -1; } } else g_hold_t0 = 0; }
     g_prev_phys = phys;
-    if (toggle && g_snxvk_on) { if (g_backend_status) g_backend_status("The in-game menu needs the OpenGL renderer for now (Play screen > Graphics)"); toggle = false; }
     bool open;
     { Lock k; if (toggle) { if (!g_q.open) { g_q.m.unlock(); snapshot_settings(); g_q.m.lock(); g_q.open = true; backend_release_keys(); logf_(1, "menu: opened at frame %d\n", g_frames); } else g_q.open = false; } open = g_q.open; }
     if (open) {
@@ -289,28 +295,31 @@ static void test_window_shot() {
     gpu_gl_state_dirty();
 }
 
-extern "C" void ov_gl_frame(void) {
-    test_window_shot();
+static bool ov_frame_begin(int vk, int forced_w, int forced_h) {
     bool open; std::vector<Ev> ev; bool up, down, left, right, act[NAV_COUNT];
     {
         Lock k; open = g_q.open; ev.swap(g_q.ev);
         up = g_q.up; down = g_q.down; left = g_q.left; right = g_q.right; memcpy(act, g_q.act, sizeof act);
         g_q.up = g_q.down = g_q.left = g_q.right = false; memset(g_q.act, 0, sizeof g_q.act);
-        if (open && !g_ready) {}   // first open below
         if (open && g_vals.empty()) g_vals = g_q.vals;
     }
     static bool was_open;
-    if (!open) { if (was_open) { was_open = false; g_vals.clear(); g_rev.active = false; g_quit_confirm = false; } return; }
+    if (!open) { if (was_open) { was_open = false; g_vals.clear(); g_rev.active = false; g_quit_confirm = false; } return false; }
     if (!was_open) { was_open = true; g_t_open = ImGui::GetCurrentContext() ? ImGui::GetTime() : 0; g_tab_changed = true; { Lock k; g_vals = g_q.vals; } }
     if (!g_ready) {
         IMGUI_CHECKVERSION(); ImGui::CreateContext(); ImGuiIO& io = ImGui::GetIO();
         io.IniFilename = nullptr; io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad; io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
         load_fonts(io); apply_style(1.0f);
-        if (!ImGui_ImplOpenGL3_Init(nullptr)) { ImGui::DestroyContext(); Lock k; g_q.open = false; return; }
+        bool ok = false;
+        if (vk) { io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures; ok = true; }   /* NewFrame builds the atlas */
+        else ok = ImGui_ImplOpenGL3_Init(nullptr);
+        if (!ok) { ImGui::DestroyContext(); Lock k; g_q.open = false; return false; }
         g_ready = true; g_t_open = ImGui::GetTime();
     }
     ImGuiIO& io = ImGui::GetIO();
-    int w = 1, h = 1; backend_window_size(&w, &h);
+    int w = forced_w, h = forced_h;
+    if (!vk) { w = 1; h = 1; backend_window_size(&w, &h); }
+    if (w <= 0 || h <= 0) return false;
     io.DisplaySize = ImVec2((float)w, (float)h);
     static double last; double now = now_s();
     io.DeltaTime = last > 0 ? std::max(1e-4f, (float)(now - last)) : 1.0f / 60; last = now;
@@ -331,7 +340,8 @@ extern "C" void ov_gl_frame(void) {
         }
     }
     float sc = std::max(0.55f, std::min(2.2f, std::min(h / 1080.0f, w / 1700.0f))); if (fabsf(sc - g_scale) > 0.01f) apply_style(sc);
-    ImGui_ImplOpenGL3_NewFrame(); ImGui::NewFrame();
+    if (!vk) ImGui_ImplOpenGL3_NewFrame();
+    ImGui::NewFrame();
     nav_frame_begin();
     g_row.pad_left = left || ImGui::IsKeyPressed(ImGuiKey_LeftArrow); g_row.pad_right = right || ImGui::IsKeyPressed(ImGuiKey_RightArrow); g_row.confirm = act[NAV_CONFIRM];
     if (g_rev.active && act[NAV_CONFIRM]) { g_rev.active = false; g_row.confirm = false; }   // "Keep these display settings?": confirm keeps
@@ -342,7 +352,12 @@ extern "C" void ov_gl_frame(void) {
     draw_menu((float)w, (float)h, ImGui::GetTime());
     if (!g_rev.active) nav_move(down ? 1 : up ? -1 : 0);   // controller up/down (keyboard arrows use ImGui's own nav)
     ImGui::Render();
-    // draw into the window's framebuffer (with renderer=vulkan the runtime redirects framebuffer 0 to the image Vulkan presents)
+    return true;
+}
+
+static void ov_frame_present_gl(void) {
+    int w = 1, h = 1; backend_window_size(&w, &h);
+    // draw into the window's framebuffer
     typedef void (APIENTRY * BindFB)(unsigned, unsigned); typedef void (APIENTRY * GetI)(unsigned, int*); typedef void (APIENTRY * Clip)(unsigned, unsigned);
     typedef void (APIENTRY * En)(unsigned); typedef unsigned char (APIENTRY * IsEn)(unsigned); typedef void (APIENTRY * VP)(int, int, int, int);
     static BindFB bind = (BindFB)backend_gl_proc("glBindFramebuffer"); static GetI geti = (GetI)backend_gl_proc("glGetIntegerv");
@@ -363,3 +378,101 @@ extern "C" void ov_gl_frame(void) {
           std::string path = fmt("%s-m%d.ppm", pre, n); FILE* f = fopen(path.c_str(), "wb");
           if (f) { fprintf(f, "P6\n%d %d\n255\n", w, h); for (int y = h - 1; y >= 0; y--) fwrite(&px[(size_t)y * w * 3], 1, (size_t)w * 3, f); fclose(f); } } } }
 }
+
+extern "C" void ov_gl_frame(void) {
+    test_window_shot();
+    if (!ov_frame_begin(0, 0, 0)) return;
+    ov_frame_present_gl();
+}
+
+#ifdef SWR_HAVE_SNXVK
+static ImDrawData* s_vk_draw;
+static std::vector<SnxUiTriVertex> s_vk_verts;
+static std::vector<uint32_t> s_vk_idx;
+static std::vector<SnxUiTriRange> s_vk_ranges;
+static std::vector<unsigned> s_vk_atlas_px;
+
+/* the menu's font atlas, premultiplied for ScarletNX's UI shader, which blends with
+   srcColor = ONE (its atlas convention is premultiplied alpha). ImGui's atlas is white
+   RGB with an alpha coverage, so text would otherwise be solid white blocks. */
+extern "C" const unsigned* ov_vk_atlas(int* w, int* h, unsigned* version) {
+    if (!g_ready || !ImGui::GetCurrentContext()) { *w = 1; *h = 1; *version = 0; return nullptr; }
+    ImFontAtlas* fa = ImGui::GetIO().Fonts;
+    if (!fa || !fa->TexData || !fa->TexData->Pixels) { *w = 1; *h = 1; *version = 0; return nullptr; }
+    *w = fa->TexData->Width; *h = fa->TexData->Height;
+    { static const void* last_px; static int last_w, last_h, last_uw, last_uh; static unsigned ver;
+      int uw = fa->TexData->UsedRect.w, uh = fa->TexData->UsedRect.h;
+      int changed = fa->TexData->Status != ImTextureStatus_OK;
+      if (fa->TexData->Pixels != last_px || *w != last_w || *h != last_h || uw != last_uw || uh != last_uh)
+          changed = 1;
+      if (changed) {
+          last_px = fa->TexData->Pixels; last_w = *w; last_h = *h; last_uw = uw; last_uh = uh; ver++;
+          fa->TexData->SetStatus(ImTextureStatus_OK);
+          s_vk_atlas_px.resize((size_t)*w * *h);
+          const unsigned char* src = fa->TexData->Pixels;
+          if (fa->TexData->BytesPerPixel == 4)
+              for (size_t i = 0; i < s_vk_atlas_px.size(); i++) {
+                  unsigned a = src[i * 4 + 3];
+                  unsigned r = (src[i * 4 + 0] * a + 127) / 255;
+                  unsigned g = (src[i * 4 + 1] * a + 127) / 255;
+                  unsigned b = (src[i * 4 + 2] * a + 127) / 255;
+                  s_vk_atlas_px[i] = r | (g << 8) | (b << 16) | (a << 24);
+              }
+          else
+              for (size_t i = 0; i < s_vk_atlas_px.size(); i++) {
+                  unsigned a = src[i];
+                  s_vk_atlas_px[i] = a | (a << 8) | (a << 16) | (a << 24);
+              }
+      }
+      *version = ver; }
+    return s_vk_atlas_px.data();
+}
+
+static int ov_vk_wanted(void) { return g_q.open ? 1 : 0; }
+static int ov_vk_prepare(void* cb, unsigned w, unsigned h) {
+    if (!ov_frame_begin(1, (int)w, (int)h)) return 0;
+    ImDrawData* dd = ImGui::GetDrawData();
+    if (!dd || !dd->Valid) return 0;
+    snxv_vk_ui_triangles_prepare(cb);   /* atlas + pipeline, outside the rendering pass */
+    s_vk_verts.clear(); s_vk_idx.clear(); s_vk_ranges.clear();
+    s_vk_verts.reserve(dd->TotalVtxCount);
+    s_vk_idx.reserve(dd->TotalIdxCount);
+    int vtx_base = 0, idx_base = 0;
+    for (int n = 0; n < dd->CmdListsCount; ++n) {
+        ImDrawList* dl = dd->CmdLists[n];
+        for (int i = 0; i < dl->VtxBuffer.Size; ++i) {
+            const ImDrawVert& v = dl->VtxBuffer[i];
+            SnxUiTriVertex t; t.x = v.pos.x; t.y = v.pos.y; t.u = v.uv.x; t.v = v.uv.y; t.rgba = (uint32_t)v.col;
+            s_vk_verts.push_back(t);
+        }
+        for (int i = 0; i < dl->IdxBuffer.Size; ++i) s_vk_idx.push_back((uint32_t)dl->IdxBuffer[i]);
+        for (int c = 0; c < dl->CmdBuffer.Size; ++c) {
+            const ImDrawCmd& cmd = dl->CmdBuffer[c];
+            if (cmd.UserCallback) continue;
+            SnxUiTriRange r;
+            r.first = (uint32_t)(cmd.IdxOffset + idx_base);
+            r.count = cmd.ElemCount;
+            r.base = (uint32_t)(cmd.VtxOffset + vtx_base);
+            r.clip[0] = cmd.ClipRect.x; r.clip[1] = cmd.ClipRect.y;
+            r.clip[2] = cmd.ClipRect.z; r.clip[3] = cmd.ClipRect.w;
+            s_vk_ranges.push_back(r);
+        }
+        idx_base += dl->IdxBuffer.Size;
+        vtx_base += dl->VtxBuffer.Size;
+    }
+    if (s_vk_ranges.empty()) return 0;
+    s_vk_draw = dd;
+    return 1;
+}
+static void ov_vk_frame(void* cb) {
+    if (!s_vk_draw) return;
+    snxv_vk_ui_triangles(cb, s_vk_verts.data(), (int)s_vk_verts.size(), s_vk_idx.data(), (int)s_vk_idx.size(),
+                    s_vk_ranges.data(), (int)s_vk_ranges.size());
+    s_vk_draw = nullptr;
+}
+extern "C" void ov_vk_overlay_install(void) {
+    snxv_g_vk_overlay_wanted = ov_vk_wanted;
+    snxv_g_vk_overlay_prepare = ov_vk_prepare;
+    snxv_g_vk_overlay_frame = ov_vk_frame;
+}
+#endif

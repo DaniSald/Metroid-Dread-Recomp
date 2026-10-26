@@ -12,6 +12,7 @@
 #include "nx/runtime/platform/prepare_screen.h"
 #include "nx/runtime/platform/plat.h"
 #include "nx/runtime/platform/vpad.h"
+#include "snxvk_ui_overlay.h"
 
 #define MAX_QUADS 4096
 typedef struct {
@@ -33,6 +34,9 @@ static u32 g_atlas_version;
 static float g_atlas_w, g_atlas_h;
 static VkImage g_sc_img[VK_SC_MAX];
 static VkImageView g_sc_view[VK_SC_MAX];
+VkOverlayWantedFn g_vk_overlay_wanted;   /* SwitchRecomp: the runtime's in-game menu */
+VkOverlayPrepareFn g_vk_overlay_prepare;
+VkOverlayFrameFn g_vk_overlay_frame;
 
 static int layout_make(void) {
     VkDescriptorSetLayoutBinding b = {.binding = 0,
@@ -335,4 +339,117 @@ void vk_ui_draw(VkCommandBuffer cb, VkImage sc, const int safe[4]) {
     vk_barrier(cb, sc, VK_IMAGE_ASPECT_COLOR_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+}
+
+/* SwitchRecomp: the runtime's in-game menu (Dear ImGui draw data), over the finished picture.
+   The image comes in `from` and goes back to `to`; the menu's backend begins no rendering pass itself,
+   so this opens one on the swapchain view and gives it the command buffer. */
+static void overlay_layout(VkImageLayout l, VkPipelineStageFlags2* stage, VkAccessFlags2* access) {
+    switch (l) {
+    case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+        *stage = VK_PIPELINE_STAGE_2_BLIT_BIT | VK_PIPELINE_STAGE_2_CLEAR_BIT;
+        *access = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        break;
+    case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+        *stage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+        *access = 0;
+        break;
+    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+        *stage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        *access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        break;
+    default:
+        *stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        *access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+        break;
+    }
+}
+void vk_ui_overlay(VkCommandBuffer cb, VkImage sc, u32 w, u32 h, VkImageLayout from, VkImageLayout to) {
+    VkImageView view;
+    VkPipelineStageFlags2 ss, ds;
+    VkAccessFlags2 sa, da;
+    if (!g_vk_overlay_prepare || !g_vk_overlay_frame || !g_vk_overlay_wanted || !g_vk_overlay_wanted() || !w || !h) return;
+    if (!g_vk_overlay_prepare(cb, w, h)) return;
+    view = sc_view(sc);
+    if (!view) return;
+    overlay_layout(from, &ss, &sa);
+    overlay_layout(to, &ds, &da);
+    vk_barrier(cb, sc, VK_IMAGE_ASPECT_COLOR_BIT, ss, sa, from,
+               VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+               VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    {
+        VkRenderingAttachmentInfo at = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                                        .imageView = view,
+                                        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                                        .storeOp = VK_ATTACHMENT_STORE_OP_STORE};
+        VkRenderingInfo ri = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+                              .renderArea = {{0, 0}, {w, h}},
+                              .layerCount = 1,
+                              .colorAttachmentCount = 1,
+                              .pColorAttachments = &at};
+        VkViewport vp = {0, 0, (float)w, (float)h, 0, 1};
+        VkRect2D sci = {{0, 0}, {w, h}};
+        rec_CmdBeginRendering(cb, &ri);
+        rec_CmdSetViewport(cb, 0, 1, &vp);
+        rec_CmdSetScissor(cb, 0, 1, &sci);
+        g_vk_overlay_frame(cb);
+        rec_CmdEndRendering(cb);
+    }
+    vk_barrier(cb, sc, VK_IMAGE_ASPECT_COLOR_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+               VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, ds, da, to);
+    vk_render_forget_state(); /* the menu bound its own pipeline and descriptors */
+}
+
+void vk_ui_triangles_prepare(void* cb_) {
+    VkCommandBuffer cb = (VkCommandBuffer)cb_;
+    if (!layout_make()) return;
+    ui_lock();
+    atlas_upload(cb);
+    ui_unlock();
+    pipeline_make(g_vk.sc_format);
+}
+void vk_ui_triangles(void* cb_, const SnxUiTriVertex* v, int nv, const u32* idx, int ni,
+                     const SnxUiTriRange* r, int nr) {
+    VkCommandBuffer cb = (VkCommandBuffer)cb_;
+    VkBuffer vb, ib;
+    u64 voff, ioff;
+    Vertex* dst;
+    u32* idst;
+    int i;
+    u32 w = g_vk.sc_extent.width, h = g_vk.sc_extent.height;
+    struct { float w, h; u32 srgb, pad; } pc = {(float)w, (float)h, (u32)g_vk.sc_srgb, 0};
+    VkViewport vp = {0, 0, (float)w, (float)h, 0, 1};
+    if (!nv || !ni || !nr || !g_pipe || !g_atlas) return;
+    dst = (Vertex*)vk_stage((u64)nv * sizeof(Vertex), 4, &vb, &voff);
+    idst = (u32*)vk_stage((u64)ni * 4, 4, &ib, &ioff);
+    if (!dst || !idst) return;
+    for (i = 0; i < nv; ++i) {
+        dst[i].x = v[i].x; dst[i].y = v[i].y;
+        dst[i].u = v[i].u; dst[i].v = v[i].v;
+        dst[i].rgba = v[i].rgba;
+    }
+    memcpy(idst, idx, (size_t)ni * 4);
+    rec_CmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipe);
+    rec_CmdSetViewport(cb, 0, 1, &vp);
+    rec_CmdPushConstants(cb, g_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
+    rec_CmdBindVertexBuffers(cb, 0, 1, &vb, &voff);
+    rec_CmdBindIndexBuffer(cb, ib, ioff, VK_INDEX_TYPE_UINT32);
+    rec_CmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_layout, 0, 1, &g_sets[0], 0, NULL);
+    for (i = 0; i < nr; ++i) {
+        /* one scissor per clipped ImGui command; a pixel of slack keeps a glyph's first
+           column from being cut when the clip lands on a fractional coordinate */
+        float x0 = r[i].clip[0] - 1, y0 = r[i].clip[1] - 1, x1 = r[i].clip[2] + 1, y1 = r[i].clip[3] + 1;
+        VkRect2D sc;
+        if (x0 < 0) x0 = 0;
+        if (y0 < 0) y0 = 0;
+        if (x1 > (float)w) x1 = (float)w;
+        if (y1 > (float)h) y1 = (float)h;
+        if (x1 <= x0 || y1 <= y0 || !r[i].count) continue;
+        sc.offset.x = (i32)x0; sc.offset.y = (i32)y0;
+        sc.extent.width = (u32)(x1 - x0); sc.extent.height = (u32)(y1 - y0);
+        rec_CmdSetScissor(cb, 0, 1, &sc);
+        rec_CmdDrawIndexed(cb, r[i].count, 1, r[i].first, (i32)r[i].base, 0);
+    }
 }

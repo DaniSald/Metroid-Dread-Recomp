@@ -121,9 +121,12 @@ void vic_gpu_params(const void* j, void* p, const u32 in_base[16], u32 oc_base){
 void* vk_nvdec_hw_device(void){ return NULL; }
 int vk_nvdec_write(const void* p){ (void)p; return 0; }
 
-/* no on-screen controls or launcher overlay */
-static const u32 g_atlas_px[1]={0};
-const u32* ui_atlas(int* w, int* h, u32* version){ *w=1; *h=1; *version=1; return g_atlas_px; }
+/* no on-screen controls; the atlas is the menu's ImGui font atlas (ov.cpp) */
+extern const u32* ov_vk_atlas(int*,int*,unsigned*) __attribute__((weak));
+const u32* ui_atlas(int* w, int* h, u32* version){
+  if(ov_vk_atlas) return ov_vk_atlas(w,h,version);
+  *w=1; *h=1; *version=0; return NULL;
+}
 void ui_atlas_done(void){}
 static PMutex g_ui_lk; static int g_ui_lk_init;
 void ui_lock(void){ if(!g_ui_lk_init){ pm_init(&g_ui_lk); g_ui_lk_init=1; } pm_lock(&g_ui_lk); }
@@ -176,6 +179,8 @@ int snxvk_start(void){
   if(!snxv_vk_renderer.start()){
     WARN("vulkan_native: Vulkan 1.3 renderer could not start (see above): using OpenGL\n"); return 0; }
   g_snxvk_on=1;
+  { extern void ov_vk_overlay_install(void) __attribute__((weak));
+    if(ov_vk_overlay_install) ov_vk_overlay_install(); }   /* the F1 menu (dread_ui/ov.cpp) */
   LOG("renderer: native Vulkan (experimental, ScarletNX renderer; shaders translated to SPIR-V)\n");
   return 1;
 }

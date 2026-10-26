@@ -59,8 +59,8 @@ saves) next to this file, then run:
 
 The game needs a working OpenGL 4.3 driver (Wayland works through XWayland) and,
 for controllers, SDL2. With renderer=vulkan_native it needs a Vulkan 1.3 driver and
-libvulkan.so.1. F1 or the controller Home button opens the in-game menu (OpenGL
-only); F11/Alt+Enter toggles fullscreen. Settings are in "Metroid Dread.ini".
+libvulkan.so.1. F1 or the controller Home button opens the in-game menu with either
+renderer; F11/Alt+Enter toggles fullscreen. Settings are in "Metroid Dread.ini".
 
 The game data is compiled from your own Metroid Dread 2.1.0 dump and must not be
 redistributed. No game files are included here.

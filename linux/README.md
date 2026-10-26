@@ -7,8 +7,7 @@ not the Windows EXE under Wine. The repository contains no game files: you compi
 
 The Windows build has a first-run Play screen and setup window. The Linux runtime has
 no in-process setup GUI yet, so the build is driven by the scripts below. The in-game
-menu (F1 / controller Home) is built for the OpenGL renderer; the native Vulkan
-renderer has no menu yet.
+menu (F1 / controller Home) works with both the OpenGL and native Vulkan renderers.
 
 ## Requirements
 
@@ -122,7 +121,7 @@ cd "games/Metroid Dread"
 ```
 
 - **F1** or the controller Home/Guide button opens the in-game menu. It has Display,
-  Graphics, Gameplay, Audio, Controls and Help pages (OpenGL renderer; see Vulkan below).
+  Graphics, Gameplay, Audio, Controls and Help pages.
 - **F11** / Alt+Enter toggles fullscreen, **F3** takes a screenshot, **F4** toggles the
   FPS limit, **F8** takes a full-resolution PNG screenshot, **Esc** quits.
 - Keyboard: arrows = D-Pad, WASD = left stick, IJKL = right stick, X/Space = A,
@@ -150,9 +149,8 @@ present, the runtime logs the reason and falls back to OpenGL.
 
 Known differences from the OpenGL path on Linux:
 
-- The in-game menu is not drawn by the native Vulkan renderer (the same limitation as
-the Windows Vulkan path). F1 is ignored; switch to `renderer=opengl` to change settings
-in the menu, or edit the `.ini`.
+- The in-game menu (`F1` / Home) is drawn through ScarletNX's Vulkan UI pipeline; the
+  controls and settings work as they do on OpenGL.
 - HDR output and DLSS are not ported to Linux; there is no DXGI/NGX here.
 - Shader/pipeline caches are written under `vulkan_native/` next to the executable.
 - `SWR_NO_SNXVK=1 linux/build_runtime.sh` builds an OpenGL-only runtime.
@@ -178,7 +176,7 @@ available:
   scripts above. The game's .ini and the in-game menu cover the player settings.
 - OpenGL and native Vulkan rendering are available. DLSS, frame generation (`lsfg`),
   HDR output and the F7 recorder are Windows-only in this source tree. The in-game
-  menu is OpenGL-only, as on Windows.
+  menu works with both renderers.
 - The in-game menu is built from Dear ImGui's sources (the Windows Play screen is
   Direct3D 11 and is not part of the Linux build).
 - Saves/settings are under `Metroid Dread_data/` just like on Windows; no Nintendo

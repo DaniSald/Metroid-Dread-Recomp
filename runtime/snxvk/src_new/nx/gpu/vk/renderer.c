@@ -429,12 +429,17 @@ static void show(Surf* src, u32 fw, u32 fh, u32 transform, int game) {
             if (sc == sc_out) {
                 int safe[4] = {(int)cx, (int)cy, (int)cw, (int)ch};
                 vk_ui_draw(cb, sc, safe);
+                /* SwitchRecomp: the in-game menu (ImGui Vulkan) over the controls, still in TRANSFER_DST */
+                vk_ui_overlay(cb, sc, g_vk.sc_extent.width, g_vk.sc_extent.height,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             }
             if (sc != sc_out) {
                 void vk_hdr_resolve(VkCommandBuffer cb, VkImage sc);
                 PH(7);
                 vk_hdr_resolve(cb, sc_out); /* SWR: the SDR image to the HDR swapchain image, left in PRESENT_SRC */
                 PH(8);
+                vk_ui_overlay(cb, sc_out, g_vk.sc_extent.width, g_vk.sc_extent.height,
+                              VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
             } else
                 vk_barrier(cb, sc, VK_IMAGE_ASPECT_COLOR_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT,
                            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,

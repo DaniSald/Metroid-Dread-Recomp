@@ -17,6 +17,8 @@ Local changes to upstream (marked "SWR" in the code):
   gpu/vk/renderer.c     the HDR/FXAA present pass, DLSS frame hook, "slow present" step timing (logs over 250 ms)
   gpu/vk/render.c, texture.c, device.c, spirv_translate.c: DLSS hooks (dlss.c, private builds only; dlss_stub.c here)
   gpu/vk/swr_settings.c, gpu/maxwell/mme_jit_stub.c: our settings and no LLVM macro JIT (the interpreter runs every macro)
+  gpu/vk/ui.c, gpu/vk/renderer.c, gpu/vk/vk.h: the runtime's F1 menu drawn as triangles through the UI pipeline
+  (snxvk_ui_overlay.h), after the game picture and the HDR/FXAA pass
 
 Build (Windows): set GLSLANG=<glslang.exe 16.6.0> and run python\python.exe work-profiler\build_snxvk2.py
 (SWR_NO_DLSS=1: runtime\snxvk\libsnxvk_new_nodlss.a, the public build), then the normal --build-runtime links it and

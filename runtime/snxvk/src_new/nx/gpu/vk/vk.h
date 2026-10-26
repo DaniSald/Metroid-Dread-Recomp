@@ -916,6 +916,16 @@ void vk_render_end(void); /* ends the dynamic rendering pass, if one is open */
    safe is the picture's part clear of the system's bars (gpu/vk/ui.c) */
 void vk_ui_draw(VkCommandBuffer cb, VkImage sc, const int safe[4]);
 void vk_ui_swapchain_gone(void); /* its images' views go before the swapchain does */
+/* SwitchRecomp: the in-game menu on the Vulkan renderer. The adapter installs these; wanted() is
+   checked before any state is touched, frame() records the menu's draws inside a rendering pass that
+   transitions the image from `from` and leaves it in `to`. NULL when the runtime has no menu. */
+typedef int (*VkOverlayWantedFn)(void);
+typedef int (*VkOverlayPrepareFn)(VkCommandBuffer cb, u32 w, u32 h);
+typedef void (*VkOverlayFrameFn)(VkCommandBuffer cb);
+extern VkOverlayWantedFn g_vk_overlay_wanted;
+extern VkOverlayPrepareFn g_vk_overlay_prepare;
+extern VkOverlayFrameFn g_vk_overlay_frame;
+void vk_ui_overlay(VkCommandBuffer cb, VkImage sc, u32 w, u32 h, VkImageLayout from, VkImageLayout to);
 void vk_render_clear(GpuChannel* ch, u32 v);
 VkViewport vk_render_viewport(const u32* r);
 int vk_render_depth_clamp(const u32* r);

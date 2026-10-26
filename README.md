@@ -104,9 +104,8 @@ development. The runtime alone is `linux/build_runtime.sh` → `bin/runtime_linu
 `runtime/snxvk/libsnxvk_linux.a` for the native Vulkan renderer (`SWR_NO_SNXVK=1` skips it).
 
 The Linux build has no Play/setup screen or updater, DLSS, frame generation or F7 recorder. The in-game menu
-(F1 or Home) works with OpenGL; the native Vulkan renderer currently has no menu (the same limitation as on
-Windows). F11 toggles fullscreen. See [`linux/README.md`](linux/README.md) for dependencies, options, Vulkan
-notes, Steam Deck notes and troubleshooting.
+(F1 or Home) works with both the OpenGL and native Vulkan renderers. F11 toggles fullscreen. See
+[`linux/README.md`](linux/README.md) for dependencies, options, Vulkan notes, Steam Deck notes and troubleshooting.
 
 ## What is in this repository
 
