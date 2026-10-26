@@ -21,6 +21,19 @@ for f in "$EXE" "$SO"; do
 done
 
 echo
+echo "== native Vulkan renderer (optional: renderer=vulkan_native)"
+if ldconfig -p 2>/dev/null | grep -q 'libvulkan.so.1'; then
+  echo "  libvulkan.so.1: present"
+else
+  echo "  libvulkan.so.1: MISSING (install the Vulkan loader, e.g. libvulkan1 / vulkan-icd-loader)"
+fi
+if command -v vulkaninfo >/dev/null 2>&1; then
+  vulkaninfo --summary 2>/dev/null | sed -n '/^GPU0:/,/^$/p' | sed 's/^/  /'
+else
+  echo "  vulkaninfo not installed: install vulkan-tools to list the Vulkan devices"
+fi
+
+echo
 echo "Build-host glibc: $(ldd --version | head -1)"
 echo "If the target (Steam Deck / older distribution) has an older glibc than the newest"
 echo "symbol above, build on the oldest distribution you need to support."
