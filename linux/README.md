@@ -20,9 +20,9 @@ Build tools and development headers:
 
 | distribution | packages |
 |---|---|
-| Debian / Ubuntu / Linux Mint | `build-essential python3 libx11-dev libgl1-mesa-dev libvulkan-dev` |
-| Arch / Manjaro | `base-devel python libx11 mesa vulkan-headers vulkan-icd-loader` |
-| Fedora | `gcc gcc-c++ make python3 libX11-devel mesa-libGL-devel vulkan-loader-devel vulkan-headers` |
+| Debian / Ubuntu / Linux Mint | `build-essential python3 libx11-dev libgl1-mesa-dev` (`libvulkan1 mesa-vulkan-drivers` at run time for Vulkan) |
+| Arch / Manjaro | `base-devel python libx11 mesa` (`vulkan-icd-loader` + `vulkan-radeon`/`vulkan-intel` at run time) |
+| Fedora | `gcc gcc-c++ make python3 libX11-devel mesa-libGL-devel` (`vulkan-loader` + `mesa-vulkan-drivers` at run time) |
 | SteamOS (Desktop Mode) | build on another Linux PC, or install a build environment; the produced folder runs on the Deck |
 
 At run time you also want:

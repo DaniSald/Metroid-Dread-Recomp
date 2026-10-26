@@ -85,8 +85,8 @@ DLLs the game ships beside it. They are not in this repository.
 The Linux build is native X11 (not Wine) and has two renderers: OpenGL (the default) and the ScarletNX
 native Vulkan renderer (`renderer=vulkan_native`). It needs a C/C++ compiler, Python 3, the X11/OpenGL
 development headers and the Vulkan headers: on Debian/Ubuntu
-`sudo apt install build-essential python3 libx11-dev libgl1-mesa-dev libvulkan-dev`. A Vulkan 1.3 driver
-(`mesa-vulkan-drivers` on Mesa) is needed only for the Vulkan renderer. The optional SDL2 runtime adds
+`sudo apt install build-essential python3 libx11-dev libgl1-mesa-dev`. The optional Vulkan renderer needs
+`libvulkan1` and a Vulkan 1.3 driver (`mesa-vulkan-drivers` on Mesa) at run time. The optional SDL2 runtime adds
 controller support.
 
 You still need **your own** Metroid Dread 2.1.0 ExeFS and RomFS. One command builds the runtime and compiles
