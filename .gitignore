@@ -15,6 +15,7 @@ cleanbuild_test/
 runtime/snxvk/obj*/
 __pycache__/
 release/
+linux/dist/
 *.log
 shader_cache/
 vulkan_native/

@@ -27,7 +27,7 @@ the game with a bundled GCC, a Play / settings screen, and an in-game menu (F1 o
 | `runtime/snxvk/` | ScarletNX's native Vulkan renderer (GPL-3.0, main b5f4f14) in `src_new/`, vendored, symbols prefixed `snxv_`; our DLSS code in `src_new/nx/gpu/vk/dlss.c` |
 | `dread/` | setup driver run by the EXE, patch set, RomFS manifest, release script, design notes |
 | `third_party/imgui-1.92.5/` | Dear ImGui (MIT) |
-| `linux/` | scripts for the Linux / Steam Deck build |
+| `linux/` | native Linux / Steam Deck build scripts and notes (see `linux/README.md`) |
 
 ## Setting up the game (players)
 
@@ -79,6 +79,29 @@ python\python.exe dread\make_release.py release <empty folder> --version X.Y.Z -
 
 The release step also needs `redist\zlib1.dll` (zlib 1.3.1, x64) and `redist\SDL2.dll` (SDL 2.x x64 release), the two
 DLLs the game ships beside it. They are not in this repository.
+
+## Build from source (Linux / Steam Deck)
+
+The Linux build is native X11/OpenGL (not Wine). It needs a C/C++ compiler, Python 3 and the X11/OpenGL
+development headers: on Debian/Ubuntu `sudo apt install build-essential python3 libx11-dev libgl1-mesa-dev`.
+The optional SDL2 runtime adds controller support.
+
+You still need **your own** Metroid Dread 2.1.0 ExeFS and RomFS. One command builds the runtime and compiles
+them into a runnable folder:
+
+```bash
+linux/build_all.sh /path/to/your/MetroidDread/dump --jobs 6
+cd "games/Metroid Dread"
+./Metroid\ Dread
+```
+
+If the base game and the 2.1.0 update are separate dumps, add `--update /path/to/update`. The default installs
+a verified copy of the RomFS (hard-linked when possible); `--romfs-mode symlink` avoids the 5 GB copy for
+development. The runtime alone is `linux/build_runtime.sh` → `bin/runtime_linux_x11`.
+
+The Linux build has no Play/setup screen or updater, no native Vulkan, DLSS, frame generation or F7 recorder
+(those are Windows-only in this tree). The in-game menu (F1 or Home) works. F11 toggles fullscreen.
+See [`linux/README.md`](linux/README.md) for dependencies, options, Steam Deck notes and troubleshooting.
 
 ## What is in this repository
 

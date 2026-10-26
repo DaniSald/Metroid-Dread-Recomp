@@ -219,7 +219,7 @@ def link_module(objs, cc, out, target_win, say):
         cmd = [cc, '-shared', '-o', out] + tcc_b(cc) + ['@objects.rsp']
     else:
         cmd = [cc, '-shared', '-o', out, '@objects.rsp']
-        if not target_win: cmd += ['-lm']
+        if not target_win: cmd += ['-lm', '-ldl']   # generated Dread patches use dlopen for the system zlib
         else: cmd += ['-static-libgcc']
     err = run_cc(cmd, cc, cwd=bdir)
     if err: raise SystemExit('Linking failed:\n' + err[-4000:])

@@ -154,6 +154,11 @@ def load_manifest():
 
 
 def same_volume(a, b):
+    if os.name != 'nt':   # POSIX splitdrive() is always empty: on Linux the device decides
+        try:
+            return os.stat(a).st_dev == os.stat(b).st_dev
+        except OSError:
+            return False
     return os.path.splitdrive(os.path.abspath(a))[0].lower() == os.path.splitdrive(os.path.abspath(b))[0].lower()
 
 

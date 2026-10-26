@@ -223,6 +223,10 @@ static int key_once(KeySym k, int down){
   for(i=0;i<8;i++) if(!held[i]){ held[i]=k; break; }
   return 1; }
 
+/* main.c parses [Input] mouse_buttons for every backend. The X11 backend has no mouse-to-pad mapping
+   (the mouse is used by the in-game menu), so this is the reset hook main.c asks for. */
+void mouse_map_reset(void){}
+
 /* the in-game menu (dread_ui/ov.cpp): F1 toggles it; while it is open it takes the keyboard and the mouse */
 extern void ov_input_toggle(void); extern void ov_input_key(int ovk, int down); extern void ov_input_char(unsigned c);
 extern void ov_input_mouse(float x, float y); extern void ov_input_button(int b, int down); extern void ov_input_wheel(float dy);
