@@ -245,7 +245,8 @@ def source(out):
         cp(os.path.join(ROOT, f), os.path.join(out, f))
     cptree(os.path.join(ROOT, 'runtime'), os.path.join(out, 'runtime'), ignore=src_ignore)
     # prebuilt third-party libraries the build links (BSD licences, sources linked in their READMEs)
-    for rel in ('runtime/vp9/win/libvpx.a', 'runtime/oh264/win/libdecoder.a', 'runtime/oh264/win/libcommon.a'):
+    for rel in ('runtime/vp9/win/libvpx.a', 'runtime/vp9/lin/libvpx.a',
+                'runtime/oh264/win/libdecoder.a', 'runtime/oh264/win/libcommon.a'):
         if os.path.isfile(os.path.join(ROOT, rel)):
             cp(os.path.join(ROOT, rel), os.path.join(out, rel))
     for f in ('dread_setup.py', 'make_release.py', 'make_patches.py', 'make_manifest.py', 'dread_v210_patches.json', 'romfs_v210.manifest', 'DESIGN.md'):
@@ -258,21 +259,21 @@ def source(out):
         for ext in ('.cpp', '.h'):
             cp(os.path.join(im, 'backends', f + ext), os.path.join(out, 'third_party', 'imgui-1.92.5', 'backends', f + ext))
     cp(os.path.join(im, 'backends', 'imgui_impl_opengl3_loader.h'), os.path.join(out, 'third_party', 'imgui-1.92.5', 'backends', 'imgui_impl_opengl3_loader.h'))
-    for f in ('build_imgui.py', 'build_snxvk2.py', 'gen_spv_headers.py', 'update_test.py'):
+    for f in ('build_imgui.py', 'build_snxvk2.py', 'build_snxvk_linux.py', 'gen_spv_headers.py', 'update_test.py'):
         cp(os.path.join(ROOT, 'work-profiler', f), os.path.join(out, 'work-profiler', f))
     for f in os.listdir(os.path.join(ROOT, 'linux')):
         p = os.path.join(ROOT, 'linux', f)
-        if os.path.isfile(p) and (f.endswith('.sh') or f.endswith('.h') or f.endswith('.txt')):
+        if os.path.isfile(p) and f.endswith(('.sh', '.py', '.h', '.md', '.txt')):
             cp(p, os.path.join(out, 'linux', f))
     cp(os.path.join(ROOT, 'runtime', 'snxvk', 'LICENSE'), os.path.join(out, 'LICENSE-GPL-3.0.txt'))
     open(os.path.join(out, '.gitignore'), 'w').write('\n'.join(['gcc/', 'python/', 'bin/', 'games/', '*_build/', '*_data/', '*_code.dll', '*.o', '*.a',
-        '!runtime/vp9/win/libvpx.a', '!runtime/oh264/win/*.a', 'runtime/imgui/', 'redist/', 'cleanbuild_test/', 'runtime/snxvk/obj*/', '__pycache__/', 'release/', '*.log', 'shader_cache/', 'vulkan_native/', '',
+        '!runtime/vp9/win/libvpx.a', '!runtime/vp9/lin/libvpx.a', '!runtime/oh264/win/*.a', 'runtime/imgui/', 'redist/', 'cleanbuild_test/', 'runtime/snxvk/obj*/', '__pycache__/', 'release/', 'linux/dist/', '*.log', 'shader_cache/', 'vulkan_native/', '',
         '# never commit binaries, archives or game files', '*.exe', '*.dll', '*.pdb', '*.zip', '*.7z', '*.rar', '*.nsp', '*.xci',
         '*.nca', '*.nso', '*.keys', 'exefs/', 'romfs/', 'ExeFS/', 'RomFS/', 'mods/', '']))
     # line endings exactly as written (some runtime files are CRLF by rule, the Linux scripts must stay LF)
     open(os.path.join(out, '.gitattributes'), 'w', newline='\n').write('* -text\n')
     open(os.path.join(out, 'README.md'), 'w', encoding='utf-8').write(SOURCE_README)
-    cp(os.path.join(ROOT, 'dread', 'DLSS.md'), os.path.join(out, 'DLSS.md'))
+    cp(os.path.join(ROOT, 'DLSS.md'), os.path.join(out, 'DLSS.md'))
     # files that only belong in the repository (CONTRIBUTING.md, build.bat, .github issue forms)
     repo = os.path.join(ROOT, 'dread', 'repo')
     for dp, dn, fn in os.walk(repo):
