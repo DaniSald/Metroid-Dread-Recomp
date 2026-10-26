@@ -292,7 +292,7 @@ def build_runtime(cc, out, target_win, backend, say, opt='2'):
     vp = os.path.join(RT, 'vp9', 'win' if target_win else 'lin')   # libvpx (VP9 .webm videos); optional
     vp9 = os.path.isfile(os.path.join(vp, 'libvpx.a')) and backend in ('win32', 'x11', 'headless')
     vp_inc = ['-I', os.path.join(vp, 'include')] if os.path.isdir(os.path.join(vp, 'include')) else []   # headers matching that archive
-    srcs += [os.path.join(RT, 'host1x.c'), os.path.join(RT, 'snxvk_glue.c')]
+    srcs += [os.path.join(RT, 'host1x.c')]
     # Metroid Dread front end + in-game menu (Dear ImGui, runtime/dread_ui); prebuilt by work-profiler/build_imgui.py
     imgui = os.path.join(RT, 'imgui', 'libimgui.a')
     frontend = os.path.isfile(imgui) and target_win and backend == 'win32' and not os.environ.get('SWR_NO_FRONTEND')
@@ -301,10 +301,15 @@ def build_runtime(cc, out, target_win, backend, say, opt='2'):
     overlay = not frontend and backend == 'x11' and os.path.isfile(os.path.join(RT, 'imgui', 'src', 'imgui.cpp')) and not os.environ.get('SWR_NO_FRONTEND')
     if overlay: srcs += [os.path.join(RT, 'dread_ui', f) for f in ('ui.cpp', 'ov.cpp', 'stub_fe.c')] + [os.path.join(RT, 'imgui', 'src', f) for f in ('imgui.cpp', 'imgui_draw.cpp', 'imgui_tables.cpp', 'imgui_widgets.cpp', 'imgui_impl_opengl3.cpp')]
     elif gl and not frontend: srcs += [os.path.join(RT, 'dread_ui', 'stub.c')]
-    # renderer=vulkan_native: ScarletNX's GPU front end + Vulkan renderer (GPL-3.0), prebuilt by work-profiler/build_snxvk.py
-    snxvk = os.path.join(RT, 'snxvk', 'libsnxvk_new_nodlss.a' if release else 'libsnxvk_new.a')   # ScarletNX main b5f4f14 (work-profiler/build_snxvk2.py)
+    # renderer=vulkan_native: ScarletNX's GPU front end + Vulkan renderer (GPL-3.0), prebuilt by
+    # work-profiler/build_snxvk2.py (Windows) or build_snxvk_linux.py (Linux)
+    snxvk_name = ('libsnxvk_new_nodlss.a' if release else 'libsnxvk_new.a') if target_win else 'libsnxvk_linux.a'
+    snxvk = os.path.join(RT, 'snxvk', snxvk_name)
     if os.environ.get('SWR_SNXVK_LIB'): snxvk = os.path.join(RT, 'snxvk', os.environ['SWR_SNXVK_LIB'])   # e.g. libsnxvk_new.a (re-vendor tests)
-    snxvk = snxvk if os.path.isfile(snxvk) and target_win and backend == 'win32' and not os.environ.get('SWR_NO_SNXVK') else None
+    snxvk_ok_platform = (target_win and backend == 'win32') or (not target_win and backend == 'x11')
+    snxvk = snxvk if os.path.isfile(snxvk) and snxvk_ok_platform and not os.environ.get('SWR_NO_SNXVK') else None
+    # the adapter is platform-specific: POSIX has no GetWriteWatch/DXGI, and its Vulkan surface is Xlib
+    srcs += [os.path.join(RT, 'snxvk_glue_linux.c' if (snxvk and not target_win) else 'snxvk_glue.c')]
     cmd = [cc, '-O' + opt, '-w', '-fno-strict-aliasing', '-Wl,-S', '-I', RT, '-I', os.path.join(RT, 'bcn'), '-I', os.path.join(RT, 'spvc'), '-I', os.path.join(RT, 'oh264', 'include')] + vp_inc + ['-I', os.path.join(RT, 'vp9', 'include'), '-I', os.path.join(RT, 'snxvk', 'deps', 'Vulkan-Headers-1.4.365', 'include')] + srcs + ['-o', out]
     if not h264: cmd += ['-DSWR_NO_H264']
     if vp9: cmd += ['-DSWR_HAVE_VP9']

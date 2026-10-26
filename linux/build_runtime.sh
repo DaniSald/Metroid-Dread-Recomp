@@ -53,6 +53,13 @@ for f in sources:
 print('ImGui sources prepared in runtime/imgui')
 PY
 
+# Native Vulkan renderer: ScarletNX's GPU front end + Vulkan renderer. Its sources and
+# Vulkan headers are in runtime/snxvk; the checked-in SPIR-V needs no glslang.
+if [ "${SWR_NO_SNXVK:-0}" != 1 ]; then
+  echo "Building the native Vulkan renderer..."
+  python3 work-profiler/build_snxvk_linux.py
+fi
+
 echo "Building bin/runtime_linux_${BACKEND} with $(gcc --version | head -1)..."
 python3 switchrecomp.py --build-runtime --cc gcc --target linux --backend "$BACKEND" "$@"
 

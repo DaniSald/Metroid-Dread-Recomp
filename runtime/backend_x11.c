@@ -25,6 +25,7 @@ extern int g_opt_fps;
 
 void backend_ini(const char* k, const char* v){
   if(!strcmp(k,"fullscreen")) g_want_fs=atoi(v);
+  else if(!strcmp(k,"renderer")){ extern void snxvk_ini(const char*); snxvk_ini(v); }   /* vulkan_native: snxvk_glue_linux.c */
   else if(!strcmp(k,"seconds")) g_seconds=atoi(v);
   else if(!strcmp(k,"frames")) g_maxframes=atoi(v);
   else if(!strcmp(k,"shot")) strncpy(g_shot,v,1023);
@@ -151,6 +152,8 @@ void video_init(const char* title){
   XMapWindow(dpy,win); XFlush(dpy);
   sdl_load();
   g_start=plat_ns();
+  { extern int snxvk_start(void); extern int g_snxvk_want;
+    if(g_snxvk_want && snxvk_start()) return; }   /* renderer=vulkan_native: ScarletNX draws, no GL context */
   extern void gpu_gl_start(void); gpu_gl_start();
 }
 /* GPU thread */
@@ -337,3 +340,34 @@ void frontend_frame(void){
 }
 
 int backend_glq_ok(void){ return 1; }   /* GL calls go through glq */
+
+#ifdef SWR_HAVE_SNXVK
+/* the window side of renderer=vulkan_native on Linux: libvulkan's loader, the Xlib instance
+   extensions and a VkSurfaceKHR on our X11 window. Same contract as backend_win32.c. */
+void* backend_vk_loader(void){
+  static void* lib; static void* gipa;
+  if(!gipa){
+    if(!lib) lib=dlopen("libvulkan.so.1",RTLD_NOW|RTLD_LOCAL);
+    if(!lib) lib=dlopen("libvulkan.so",RTLD_NOW|RTLD_LOCAL);
+    if(lib) gipa=dlsym(lib,"vkGetInstanceProcAddr");
+    if(!gipa){ const char* e=dlerror(); LOG("vulkan_native: libvulkan not found: %s\n",e? e : "no loader"); }
+  }
+  return gipa;
+}
+const char* const* backend_vk_extensions(u32* n){
+  static const char* const e[2]={"VK_KHR_surface","VK_KHR_xlib_surface"};
+  *n=2; return e;
+}
+int backend_vk_surface(void* instance, u64* surface){
+  typedef void* (*GIPA)(void*,const char*);
+  typedef int (*CXS)(void*,const void*,const void*,u64*);
+  struct { int sType; const void* pNext; u32 flags; Display* dpy; Window window; } ci={1000004000,NULL,0,dpy,win};
+  GIPA gipa=(GIPA)backend_vk_loader();
+  CXS cxs= gipa? (CXS)gipa(instance,"vkCreateXlibSurfaceKHR") : NULL;
+  if(!cxs || cxs(instance,&ci,NULL,surface)){ LOG("vulkan_native: no Vulkan surface on the X11 window\n"); return 0; }
+  return 1;
+}
+u32 backend_window_generation(void){ return 1; }   /* the swapchain follows the window size by itself */
+void backend_window_safe(int* x, int* y, int* w, int* h){ *x=0; *y=0; *w=g_ww; *h=g_wh; }
+int backend_window_shown(void){ return dpy && win; }
+#endif

@@ -82,9 +82,12 @@ DLLs the game ships beside it. They are not in this repository.
 
 ## Build from source (Linux / Steam Deck)
 
-The Linux build is native X11/OpenGL (not Wine). It needs a C/C++ compiler, Python 3 and the X11/OpenGL
-development headers: on Debian/Ubuntu `sudo apt install build-essential python3 libx11-dev libgl1-mesa-dev`.
-The optional SDL2 runtime adds controller support.
+The Linux build is native X11 (not Wine) and has two renderers: OpenGL (the default) and the ScarletNX
+native Vulkan renderer (`renderer=vulkan_native`). It needs a C/C++ compiler, Python 3, the X11/OpenGL
+development headers and the Vulkan headers: on Debian/Ubuntu
+`sudo apt install build-essential python3 libx11-dev libgl1-mesa-dev libvulkan-dev`. A Vulkan 1.3 driver
+(`mesa-vulkan-drivers` on Mesa) is needed only for the Vulkan renderer. The optional SDL2 runtime adds
+controller support.
 
 You still need **your own** Metroid Dread 2.1.0 ExeFS and RomFS. One command builds the runtime and compiles
 them into a runnable folder:
@@ -97,11 +100,13 @@ cd "games/Metroid Dread"
 
 If the base game and the 2.1.0 update are separate dumps, add `--update /path/to/update`. The default installs
 a verified copy of the RomFS (hard-linked when possible); `--romfs-mode symlink` avoids the 5 GB copy for
-development. The runtime alone is `linux/build_runtime.sh` → `bin/runtime_linux_x11`.
+development. The runtime alone is `linux/build_runtime.sh` → `bin/runtime_linux_x11`; it also builds
+`runtime/snxvk/libsnxvk_linux.a` for the native Vulkan renderer (`SWR_NO_SNXVK=1` skips it).
 
-The Linux build has no Play/setup screen or updater, no native Vulkan, DLSS, frame generation or F7 recorder
-(those are Windows-only in this tree). The in-game menu (F1 or Home) works. F11 toggles fullscreen.
-See [`linux/README.md`](linux/README.md) for dependencies, options, Steam Deck notes and troubleshooting.
+The Linux build has no Play/setup screen or updater, DLSS, frame generation or F7 recorder. The in-game menu
+(F1 or Home) works with OpenGL; the native Vulkan renderer currently has no menu (the same limitation as on
+Windows). F11 toggles fullscreen. See [`linux/README.md`](linux/README.md) for dependencies, options, Vulkan
+notes, Steam Deck notes and troubleshooting.
 
 ## What is in this repository
 

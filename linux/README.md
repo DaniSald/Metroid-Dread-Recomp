@@ -1,26 +1,28 @@
 # Metroid Dread — native Linux build
 
 This is the **Linux / Steam Deck** build of the SwitchRecomp runtime. It is a native
-X11/OpenGL program, not the Windows EXE under Wine. The repository contains no game
-files: you compile **your own** Metroid Dread **2.1.0** dump (ExeFS **and** RomFS, with
-the update applied).
+X11 program with two renderers: OpenGL and ScarletNX's native Vulkan renderer. It is
+not the Windows EXE under Wine. The repository contains no game files: you compile
+**your own** Metroid Dread **2.1.0** dump (ExeFS **and** RomFS, with the update applied).
 
 The Windows build has a first-run Play screen and setup window. The Linux runtime has
 no in-process setup GUI yet, so the build is driven by the scripts below. The in-game
-menu (F1 / controller Home) **is** built and works.
+menu (F1 / controller Home) is built for the OpenGL renderer; the native Vulkan
+renderer has no menu yet.
 
 ## Requirements
 
 A 64-bit Linux desktop with a working OpenGL 4.3 driver (Mesa or the vendor driver;
-Wayland desktops work through XWayland).
+Wayland desktops work through XWayland). The optional native Vulkan renderer needs a
+Vulkan 1.3 driver (Mesa RADV/ANV, NVIDIA, or Mesa's lavapipe in software).
 
 Build tools and development headers:
 
 | distribution | packages |
 |---|---|
-| Debian / Ubuntu / Linux Mint | `build-essential python3 libx11-dev libgl1-mesa-dev` |
-| Arch / Manjaro | `base-devel python libx11 mesa` |
-| Fedora | `gcc gcc-c++ make python3 libX11-devel mesa-libGL-devel` |
+| Debian / Ubuntu / Linux Mint | `build-essential python3 libx11-dev libgl1-mesa-dev libvulkan-dev` |
+| Arch / Manjaro | `base-devel python libx11 mesa vulkan-headers vulkan-icd-loader` |
+| Fedora | `gcc gcc-c++ make python3 libX11-devel mesa-libGL-devel vulkan-loader-devel vulkan-headers` |
 | SteamOS (Desktop Mode) | build on another Linux PC, or install a build environment; the produced folder runs on the Deck |
 
 At run time you also want:
@@ -28,6 +30,7 @@ At run time you also want:
 - `libsdl2-2.0-0` (or your distribution's SDL2 runtime) for controllers. Without it the
   game still runs with the keyboard.
 - zlib (`libz.so.1`, normally installed) for the game's decompression patch.
+- `libvulkan.so.1` and a Vulkan 1.3 ICD only when using `renderer=vulkan_native`.
 - About **6 GB** free for the built game data, plus the generated C/objects (about
   1 GB) and the ~190 MB `Metroid Dread_code.so`.
 
@@ -119,7 +122,7 @@ cd "games/Metroid Dread"
 ```
 
 - **F1** or the controller Home/Guide button opens the in-game menu. It has Display,
-  Graphics, Gameplay, Audio, Controls and Help pages.
+  Graphics, Gameplay, Audio, Controls and Help pages (OpenGL renderer; see Vulkan below).
 - **F11** / Alt+Enter toggles fullscreen, **F3** takes a screenshot, **F4** toggles the
   FPS limit, **F8** takes a full-resolution PNG screenshot, **Esc** quits.
 - Keyboard: arrows = D-Pad, WASD = left stick, IJKL = right stick, X/Space = A,
@@ -129,6 +132,30 @@ cd "games/Metroid Dread"
   direct reader where available.
 - Settings live in `Metroid Dread.ini`. The first run expands the short file into the
   documented one; edits are read on the next start and many apply live.
+
+### Native Vulkan renderer
+
+The Linux build now includes ScarletNX's native Vulkan renderer. Select it in
+`Metroid Dread.ini`:
+
+```ini
+[Graphics]
+renderer=vulkan_native
+```
+
+`build_runtime.sh` builds `runtime/snxvk/libsnxvk_linux.a` first; the checked-in SPIR-V
+means glslang is not needed for a normal build. The renderer uses the Xlib Vulkan
+surface and works through XWayland. It needs Vulkan 1.3; if the device/driver cannot
+present, the runtime logs the reason and falls back to OpenGL.
+
+Known differences from the OpenGL path on Linux:
+
+- The in-game menu is not drawn by the native Vulkan renderer (the same limitation as
+the Windows Vulkan path). F1 is ignored; switch to `renderer=opengl` to change settings
+in the menu, or edit the `.ini`.
+- HDR output and DLSS are not ported to Linux; there is no DXGI/NGX here.
+- Shader/pipeline caches are written under `vulkan_native/` next to the executable.
+- `SWR_NO_SNXVK=1 linux/build_runtime.sh` builds an OpenGL-only runtime.
 
 ### Steam Deck
 
@@ -149,8 +176,9 @@ available:
 
 - No first-run Play/setup screen and no automatic update checker; use the command line
   scripts above. The game's .ini and the in-game menu cover the player settings.
-- OpenGL renderer only. The native Vulkan renderer (`renderer=vulkan_native`), DLSS,
-  frame generation (`lsfg`) and the F7 recorder are Windows-only in this source tree.
+- OpenGL and native Vulkan rendering are available. DLSS, frame generation (`lsfg`),
+  HDR output and the F7 recorder are Windows-only in this source tree. The in-game
+  menu is OpenGL-only, as on Windows.
 - The in-game menu is built from Dear ImGui's sources (the Windows Play screen is
   Direct3D 11 and is not part of the Linux build).
 - Saves/settings are under `Metroid Dread_data/` just like on Windows; no Nintendo
@@ -168,6 +196,15 @@ For a CPU-only test, Mesa's llvmpipe supports 4.3+ but is slow:
 
 ```bash
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe ./Metroid\ Dread --seconds=30
+```
+
+**Vulkan starts, then falls back to OpenGL** — check `Metroid Dread.log` for the
+`vulkan_native:` line. The usual causes are no Vulkan 1.3 ICD, a missing
+`libvulkan.so.1`, or a driver without the Xlib surface extension. For a CPU-only
+Vulkan test use Mesa's lavapipe:
+
+```bash
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json ./Metroid\ Dread --seconds=30
 ```
 
 **`Cannot find the recompiled code`** — run the executable from its own folder, or keep

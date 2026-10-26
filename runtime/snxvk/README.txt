@@ -18,7 +18,13 @@ Local changes to upstream (marked "SWR" in the code):
   gpu/vk/render.c, texture.c, device.c, spirv_translate.c: DLSS hooks (dlss.c, private builds only; dlss_stub.c here)
   gpu/vk/swr_settings.c, gpu/maxwell/mme_jit_stub.c: our settings and no LLVM macro JIT (the interpreter runs every macro)
 
-Build: set GLSLANG=<glslang.exe 16.6.0> and run python\python.exe work-profiler\build_snxvk2.py
+Build (Windows): set GLSLANG=<glslang.exe 16.6.0> and run python\python.exe work-profiler\build_snxvk2.py
 (SWR_NO_DLSS=1: runtime\snxvk\libsnxvk_new_nodlss.a, the public build), then the normal --build-runtime links it and
 compiles runtime\snxvk_glue.c (the adapter between this renderer and our runtime).
+
+Build (Linux): linux/build_runtime.sh runs work-profiler/build_snxvk_linux.py, which makes
+runtime/snxvk/libsnxvk_linux.a with the Xlib Vulkan surface and the checked-in SPIR-V arrays in lin/gen/spv/ (set
+GLSLANG to a glslang binary to regenerate them), then links runtime/snxvk_glue_linux.c. The adapter is the POSIX
+counterpart of snxvk_glue.c; it has no GetWriteWatch/DXGI and uses ScarletNX's content-checking fallback.
+
 Every global symbol of the ScarletNX objects is renamed with the prefix snxv_ so its GPU front end can sit next to ours.
